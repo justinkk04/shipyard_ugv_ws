@@ -1,0 +1,168 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <world name="shipyard_corridor">
+
+    <!-- Physics and core Gazebo systems -->
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <plugin filename="ignition-gazebo-physics-system" name="ignition::gazebo::systems::Physics"/>
+    <plugin filename="ignition-gazebo-user-commands-system" name="ignition::gazebo::systems::UserCommands"/>
+    <plugin filename="ignition-gazebo-scene-broadcaster-system" name="ignition::gazebo::systems::SceneBroadcaster"/>
+
+    <!-- Needed for GPU LiDAR / LaserScan sensors -->
+    <plugin filename="libignition-gazebo-sensors-system.so" name="ignition::gazebo::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <!-- Needed for IMU sensors -->
+    <plugin filename="libignition-gazebo-imu-system.so" name="ignition::gazebo::systems::Imu"/>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- Floor: long indoor corridor / maintenance aisle -->
+    <model name="corridor_floor">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>16.0 3.2 0.02</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>16.0 3.2 0.02</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.45 0.45 0.45 1</ambient>
+            <diffuse>0.45 0.45 0.45 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Left and right corridor walls -->
+    <model name="left_corridor_wall">
+      <static>true</static>
+      <pose>2.0 1.55 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>16.0 0.12 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>16.0 0.12 1.0</size></box></geometry>
+          <material>
+            <ambient>0.65 0.65 0.65 1</ambient>
+            <diffuse>0.65 0.65 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="right_corridor_wall">
+      <static>true</static>
+      <pose>2.0 -1.55 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>16.0 0.12 1.0</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>16.0 0.12 1.0</size></box></geometry>
+          <material>
+            <ambient>0.65 0.65 0.65 1</ambient>
+            <diffuse>0.65 0.65 0.65 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Start marker: visual only, does not block the rover -->
+    <model name="start_zone_marker">
+      <static>true</static>
+      <pose>-5.0 0 0.012 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.8 1.3 0.01</size></box></geometry>
+          <material>
+            <ambient>0.1 0.25 0.9 1</ambient>
+            <diffuse>0.1 0.25 0.9 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Endpoint marker: visual only, does not block the rover -->
+    <model name="inspection_endpoint_marker">
+      <static>true</static>
+      <pose>8.5 0 0.012 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry><box><size>0.8 1.3 0.01</size></box></geometry>
+          <material>
+            <ambient>0.1 0.8 0.2 1</ambient>
+            <diffuse>0.1 0.8 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Avoidable red obstruction/hazard in the path -->
+    <model name="avoidable_obstruction_red_block">
+      <static>true</static>
+      <pose>0.5 -0.25 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>0.55 0.55 0.8</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.55 0.55 0.8</size></box></geometry>
+          <material>
+            <ambient>0.9 0.1 0.1 1</ambient>
+            <diffuse>0.9 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Maintenance clutter near the walls. These make the world look like a work corridor but still leave a path. -->
+    <model name="left_side_crate_1">
+      <static>true</static>
+      <pose>2.7 1.0 0.25 0 0 0.2</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>0.7 0.35 0.5</size></box></geometry></collision>
+        <visual name="visual"><geometry><box><size>0.7 0.35 0.5</size></box></geometry><material><ambient>0.55 0.35 0.18 1</ambient><diffuse>0.55 0.35 0.18 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="right_side_crate_1">
+      <static>true</static>
+      <pose>4.2 -1.0 0.25 0 0 -0.3</pose>
+      <link name="link">
+        <collision name="collision"><geometry><box><size>0.8 0.35 0.5</size></box></geometry></collision>
+        <visual name="visual"><geometry><box><size>0.8 0.35 0.5</size></box></geometry><material><ambient>0.55 0.35 0.18 1</ambient><diffuse>0.55 0.35 0.18 1</diffuse></material></visual>
+      </link>
+    </model>
+
+    <model name="maintenance_cone_1">
+      <static>true</static>
+      <pose>6.0 0.85 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="collision"><geometry><cylinder><radius>0.18</radius><length>0.5</length></cylinder></geometry></collision>
+        <visual name="visual"><geometry><cylinder><radius>0.18</radius><length>0.5</length></cylinder></geometry><material><ambient>1.0 0.45 0.0 1</ambient><diffuse>1.0 0.45 0.0 1</diffuse></material></visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

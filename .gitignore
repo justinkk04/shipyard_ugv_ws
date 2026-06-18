@@ -1,0 +1,13 @@
+# ROS build/install/log files
+build/
+install/
+log/
+logs/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Editor configuration
+.vscode/
+.idea/
