@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <sdf version="1.8">
-  <world name="shipyard_corridor_blocked_world">
+  <world name="shipyard_corridor_clear_world">
 
     <!-- Core Gazebo / Ignition systems -->
     <physics name="1ms" type="ignored">
@@ -104,7 +104,7 @@
       </link>
     </model>
 
-    <model name="blocked_endpoint_marker">
+    <model name="endpoint_marker">
       <static>true</static>
       <pose>8.0 0 0.025 0 0 0</pose>
       <link name="link">
@@ -114,8 +114,8 @@
         </visual>
       </link>
     </model>
-
-    <model name="start_zone_waypoint_marker">
+    
+   <model name="start_zone_waypoint_marker">
       <static>true</static>
       <pose>-4.0 0 0.025 0 0 0</pose>
       <link name="link">
@@ -126,6 +126,7 @@
       </link>
     </model>
 
+    
     <model name="centerline_waypoint_marker_1">
       <static>true</static>
       <pose>-1.0 0 0.03 0 0 0</pose>
@@ -169,32 +170,6 @@
         </visual>
       </link>
     </model>
-
-    <!-- Full blocked-route barrier for SCN-3 safe-stop verification.
-         It spans the usable corridor width so the robot should stop and report BLOCKED/SAFE_STOP. -->
-
-    <model name="blocked_route_barrier">
-      <static>true</static>
-      <pose>5.7 0 0.5 0 0 0</pose>
-      <link name="link">
-        <collision name="collision"><geometry><box><size>0.45 3.05 1.0</size></box></geometry></collision>
-        <visual name="visual">
-          <geometry><box><size>0.45 3.05 1.0</size></box></geometry>
-          <material><ambient>0.9 0.08 0.08 1</ambient><diffuse>0.9 0.08 0.08 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
-    <model name="blocked_warning_floor_marker">
-      <static>true</static>
-      <pose>5.25 0 0.035 0 0 0</pose>
-      <link name="link">
-        <visual name="visual">
-          <geometry><box><size>0.30 2.8 0.025</size></box></geometry>
-          <material><ambient>1.0 0.75 0.05 1</ambient><diffuse>1.0 0.75 0.05 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
-
+    
   </world>
 </sdf>

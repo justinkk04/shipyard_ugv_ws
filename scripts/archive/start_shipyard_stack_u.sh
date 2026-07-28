@@ -2,44 +2,27 @@
 set -e
 
 # ============================================================
-# Shipyard UGV startup script - V2 mission worlds
-# Starts Gazebo, spawns rover, and bridges ROS 2 / Gazebo topics.
+# Shipyard UGV startup script - U-shaped mission worlds
 # Usage:
-#   ./start_shipyard_stack.sh                 # default clear-route world
-#   ./start_shipyard_stack.sh avoidable       # avoidable-obstacle world
-#   ./start_shipyard_stack.sh blocked         # blocked-route safe-stop world
+#   ./start_shipyard_stack_u.sh          # normal U-shaped route
+#   ./start_shipyard_stack_u.sh blocked  # blocked-route safe-stop test
 # ============================================================
 
-MODE="${1:-clear}"
+MODE="${1:-normal}"
 WS="$HOME/shipyard_ugv_ws"
-
 MODEL="$WS/src/models/shipyard_rover/model.sdf"
 
 if [ "$MODE" = "blocked" ]; then
-
-    WORLD="$WS/src/worlds/shipyard_corridor_blocked_world.sdf"
-    WORLD_NAME="shipyard_corridor_blocked_world"
-
-elif [ "$MODE" = "avoidable" ]; then
-
-    WORLD="$WS/src/worlds/shipyard_corridor_avoidable_world.sdf"
-    WORLD_NAME="shipyard_corridor_avoidable_world"
-
-elif [ "$MODE" = "clear" ]; then
-
-    WORLD="$WS/src/worlds/shipyard_corridor_clear_world.sdf"
-    WORLD_NAME="shipyard_corridor_clear_world"
-
+    WORLD="$WS/src/worlds/shipyard_corridor_u_blocked_world.sdf"
+    WORLD_NAME="shipyard_corridor_u_blocked"
 else
-
-    echo "ERROR: Unknown mode: $MODE"
-    echo "Use one of: clear, avoidable, blocked"
-    exit 1
-    
+    WORLD="$WS/src/worlds/shipyard_corridor_u_custom.sdf"
+    WORLD_NAME="shipyard_corridor_u"
 fi
 
-SPAWN_X="-4.0"
-SPAWN_Y="0.0"
+# Start zone is centered at (-5, -3). Robot faces +x by default.
+SPAWN_X="-5.0"
+SPAWN_Y="-3.0"
 SPAWN_Z="0.25"
 
 cleanup() {
@@ -52,7 +35,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "============================================"
-echo "Starting Shipyard UGV simulation"
+echo "Starting Shipyard UGV U-route simulation"
 echo "Mode:       $MODE"
 echo "World file: $WORLD"
 echo "Model file: $MODEL"

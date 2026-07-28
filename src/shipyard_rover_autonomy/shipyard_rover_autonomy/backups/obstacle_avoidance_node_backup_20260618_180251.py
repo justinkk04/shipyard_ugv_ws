@@ -9,7 +9,6 @@ from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from std_msgs.msg import String, Float32
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
-from nav_msgs.msg import Odometry
 
 
 class ObstacleAvoidanceNode(Node):
@@ -39,17 +38,7 @@ class ObstacleAvoidanceNode(Node):
         self.declare_parameter('blocked_timeout', 10.0)
         self.declare_parameter('scan_stale_timeout', 1.0)
         self.declare_parameter('control_rate_hz', 10.0)
-        self.declare_parameter('turn_speed', 0.18)
-        self.declare_parameter('front_release_distance', 0.85)
-        self.declare_parameter('avoid_forward_speed', 0.06)
-        self.declare_parameter('min_avoid_time', 1.0)
-        self.declare_parameter('clear_cycles_required', 8)
-        self.declare_parameter('recovery_time', 4.0)
-        self.declare_parameter('recovery_forward_speed', 0.12)
-        self.declare_parameter('wall_abort_distance', 0.45)
-        self.declare_parameter('recovery_angular_cap', 0.15)
-        self.declare_parameter('recovery_kp', 0.5)
-        self.declare_parameter('recovery_yaw_threshold', 0.10)
+        self.declare_parameter('turn_speed', 0.35)
 
         self.front_clear_distance = float(
             self.get_parameter('front_clear_distance').value
@@ -72,36 +61,6 @@ class ObstacleAvoidanceNode(Node):
         self.turn_speed = float(
             self.get_parameter('turn_speed').value
         )
-        self.front_release_distance = float(
-            self.get_parameter('front_release_distance').value
-        )
-        self.avoid_forward_speed = float(
-            self.get_parameter('avoid_forward_speed').value
-        )
-        self.min_avoid_time = float(
-            self.get_parameter('min_avoid_time').value
-        )
-        self.clear_cycles_required = int(
-            self.get_parameter('clear_cycles_required').value
-        )
-        self.recovery_time = float(
-            self.get_parameter('recovery_time').value
-        )
-        self.recovery_forward_speed = float(
-            self.get_parameter('recovery_forward_speed').value
-        )
-        self.wall_abort_distance = float(
-            self.get_parameter('wall_abort_distance').value
-        )
-        self.recovery_angular_cap = float(
-            self.get_parameter('recovery_angular_cap').value
-        )
-        self.recovery_kp = float(
-            self.get_parameter('recovery_kp').value
-        )
-        self.recovery_yaw_threshold = float(
-            self.get_parameter('recovery_yaw_threshold').value
-        )
 
         # ----------------------------
         # Internal state
@@ -119,17 +78,6 @@ class ObstacleAvoidanceNode(Node):
         self.sensor_invalid_event_sent = False
 
         self.last_status = None
-
-        self.mode = 'CLEAR'
-        self.avoid_direction = None
-        self.avoid_start_time = None
-        self.recovery_start_time = None
-        self.clear_count = 0
-        self.recovery_interrupt_count = 0
-
-        # Odom-based heading tracking for self-calibrating recovery.
-        self.current_yaw = 0.0
-        self.avoidance_start_yaw = 0.0
 
         # ----------------------------
         # QoS for mission state
@@ -161,13 +109,6 @@ class ObstacleAvoidanceNode(Node):
             Twist,
             '/nominal_cmd_vel',
             self.nominal_cmd_callback,
-            10
-        )
-
-        self.odom_sub = self.create_subscription(
-            Odometry,
-            '/odom',
-            self.odom_callback,
             10
         )
 
@@ -230,15 +171,9 @@ class ObstacleAvoidanceNode(Node):
     def mission_state_callback(self, msg):
         new_state = msg.data.strip().upper()
 
-        # The mission manager publishes state repeatedly (every 0.5 s) for
-        # telemetry and late-joining subscribers. We must only act on the
-        # TRANSITION into a new state — not on every repeated heartbeat —
-        # otherwise the avoidance state machine gets wiped mid-manoeuvre.
-        if new_state == self.mission_state:
-            return
+        if new_state != self.mission_state:
+            self.get_logger().info(f'Mission state received: {new_state}')
 
-        self.get_logger().info(f'Mission state changed: {self.mission_state} → {new_state}')
-        prev_state = self.mission_state
         self.mission_state = new_state
 
         if self.mission_state == 'INSPECTING':
@@ -246,25 +181,9 @@ class ObstacleAvoidanceNode(Node):
             self.blocked_event_sent = False
             self.sensor_invalid_event_sent = False
             self.blocked_start_time = None
-
-            self.mode = 'CLEAR'
-            self.avoid_direction = None
-            self.avoid_start_time = None
-            self.avoidance_start_yaw = self.current_yaw
-            self.recovery_start_time = None
-            self.clear_count = 0
-            self.recovery_interrupt_count = 0
-            _ = prev_state  # suppress unused-variable warning
         else:
             self.publish_stop()
             self.blocked_start_time = None
-
-            self.mode = 'CLEAR'
-            self.avoid_direction = None
-            self.avoid_start_time = None
-            self.recovery_start_time = None
-            self.clear_count = 0
-            self.recovery_interrupt_count = 0
 
     def scan_callback(self, msg):
         self.latest_scan = msg
@@ -276,24 +195,6 @@ class ObstacleAvoidanceNode(Node):
     def nominal_cmd_callback(self, msg):
         self.latest_nominal_cmd = msg
         self.have_nominal_cmd = True
-
-    def odom_callback(self, msg):
-        """Extract yaw from odometry quaternion and store as current heading."""
-        q = msg.pose.pose.orientation
-        # Standard quaternion-to-yaw formula for 2D (z-rotation only).
-        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
-        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-        self.current_yaw = math.atan2(siny_cosp, cosy_cosp)
-
-    @staticmethod
-    def angle_diff(a, b):
-        """Smallest signed angular difference a - b, wrapped to [-pi, pi]."""
-        diff = a - b
-        while diff > math.pi:
-            diff -= 2.0 * math.pi
-        while diff < -math.pi:
-            diff += 2.0 * math.pi
-        return diff
 
     def control_loop(self):
         """
@@ -342,8 +243,8 @@ class ObstacleAvoidanceNode(Node):
         # Compute LiDAR sector distances.
         front_distance = self.get_sector_min_range(
             self.latest_scan,
-            -30.0,
-            30.0
+            -20.0,
+            20.0
         )
 
         left_clearance = self.get_sector_min_range(
@@ -375,227 +276,59 @@ class ObstacleAvoidanceNode(Node):
         left_is_clear = left_logic > self.side_clear_distance
         right_is_clear = right_logic > self.side_clear_distance
 
-        # ------------------------------------------------------------
-        # Stateful obstacle avoidance.
-        #
-        # CLEAR:
-        #   normal pass-through from route follower.
-        #
-        # AVOIDING:
-        #   pick one side once and keep that direction until the front
-        #   sector is clearly open for several cycles.
-        #
-        # RECOVERING:
-        #   briefly hand control back to route follower at low speed so
-        #   the robot can rejoin the waypoint route without instantly
-        #   re-triggering avoidance.
-        # ------------------------------------------------------------
+        # ----------------------------
+        # Case 1: front is clear
+        # ----------------------------
+        if front_is_clear:
+            self.blocked_start_time = None
+            self.publish_status('CLEAR_PASS_THROUGH')
+            self.cmd_pub.publish(self.latest_nominal_cmd)
+            return
 
         # ----------------------------
-        # Mode 1: normal route following
+        # Case 2: obstacle very close
         # ----------------------------
-        if self.mode == 'CLEAR':
-            if front_is_clear:
+        if front_is_danger:
+            self.publish_stop()
+            self.publish_status('DANGER_STOP')
+
+            # If both sides are also blocked, start/continue blocked timer.
+            if not left_is_clear and not right_is_clear:
+                self.handle_possible_blocked()
+            else:
                 self.blocked_start_time = None
-                self.clear_count = 0
-                self.publish_status('CLEAR_PASS_THROUGH')
-                self.cmd_pub.publish(self.latest_nominal_cmd)
-                return
 
-            # Front path is obstructed: start an avoidance commitment.
-            self.mode = 'AVOIDING'
-            self.avoid_start_time = now
-            self.blocked_start_time = now
-            self.clear_count = 0
-
-            # Snapshot the robot's heading at the moment avoidance starts.
-            # RECOVERING will use this to know how far to turn back.
-            self.avoidance_start_yaw = self.current_yaw
-            self.get_logger().info(
-                f'[AVOIDING START] yaw={math.degrees(self.current_yaw):.1f}° '
-                f'direction will be evaluated below'
-            )
-
-            # Pick one direction once. Do not switch every cycle.
-            if left_is_clear or right_is_clear:
-                if left_logic >= right_logic and left_is_clear:
-                    self.avoid_direction = 'LEFT'
-                elif right_is_clear:
-                    self.avoid_direction = 'RIGHT'
-                else:
-                    self.avoid_direction = None
-            else:
-                self.avoid_direction = None
+            return
 
         # ----------------------------
-        # Mode 2: committed avoidance
+        # Case 3: obstacle within 0.75 m, but not immediate danger
+        # Stop forward motion and turn toward the clearer side.
         # ----------------------------
-        if self.mode == 'AVOIDING':
-            if self.avoid_start_time is None:
-                self.avoid_start_time = now
+        avoidance_cmd = Twist()
+        avoidance_cmd.linear.x = 0.0
 
-            avoid_duration = (
-                now - self.avoid_start_time
-            ).nanoseconds / 1e9
+        if left_is_clear or right_is_clear:
+            self.blocked_start_time = None
 
-            # If avoidance cannot clear the obstacle in time, safe-stop.
-            if avoid_duration >= self.blocked_timeout:
-                self.publish_stop()
-                self.publish_status('BLOCKED_SAFE_STOP')
-                self.publish_mission_event_once('BLOCKED')
-                return
-
-            # If too close, stop instead of creeping forward.
-            if front_is_danger:
-                self.publish_stop()
-                self.publish_status('DANGER_STOP')
-                return
-
-            # If no safe side was found, wait until blocked timeout.
-            if self.avoid_direction is None:
-                self.publish_stop()
-                self.publish_status('BLOCKED_WAITING')
-                return
-
-            # Determine clearance on the avoidance side.
-            avoid_side_clear = left_logic if self.avoid_direction == 'LEFT' else right_logic
-
-            # Wall abort: if the avoidance-side wall is getting dangerously close,
-            # escape to RECOVERING immediately instead of continuing to turn into the
-            # wall. The route follower command is passed through so the robot begins
-            # arcing back toward the waypoint path right away.
-            if avoid_side_clear < self.wall_abort_distance and avoid_duration >= self.min_avoid_time:
-                self.mode = 'RECOVERING'
-                self.recovery_start_time = now
-                self.clear_count = 0
-                self.recovery_interrupt_count = 0
-                self.publish_status('WALL_ABORT_RECOVERING')
-                self.cmd_pub.publish(self.latest_nominal_cmd)
-                return
-
-            # Require front to be clearly open for multiple cycles before
-            # giving control back to the route follower.
-            if (
-                front_logic > self.front_release_distance
-                and avoid_duration >= self.min_avoid_time
-            ):
-                self.clear_count += 1
-            elif front_logic <= self.danger_distance:
-                # Only hard-reset the counter if the obstacle is dangerously
-                # close — not just because of a noisy boundary reading.
-                self.clear_count = 0
-
-            if self.clear_count >= self.clear_cycles_required:
-                self.mode = 'RECOVERING'
-                self.recovery_start_time = now
-                self.clear_count = 0
-                self.recovery_interrupt_count = 0
-                self.publish_status('AVOIDANCE_CLEAR_RECOVERING')
-                self.publish_stop()
-                return
-
-            # Scale turn speed down as the avoidance-side wall gets closer.
-            # This reduces over-rotation and prevents the robot from swinging
-            # its heading directly into the wall.
-            wall_margin = max(0.0, avoid_side_clear - self.wall_abort_distance)
-            max_margin = max(self.side_clear_distance - self.wall_abort_distance, 0.01)
-            turn_ratio = min(1.0, wall_margin / max_margin)
-            scaled_turn = self.turn_speed * max(0.4, turn_ratio)
-
-            avoidance_cmd = Twist()
-            avoidance_cmd.linear.x = self.avoid_forward_speed
-
-            if self.avoid_direction == 'LEFT':
-                avoidance_cmd.angular.z = scaled_turn
-                self.publish_status('AVOIDING_LEFT')
+            if left_logic >= right_logic and left_is_clear:
+                avoidance_cmd.angular.z = abs(self.turn_speed)
+                self.publish_status('OBSTACLE_TURN_LEFT')
+            elif right_is_clear:
+                avoidance_cmd.angular.z = -abs(self.turn_speed)
+                self.publish_status('OBSTACLE_TURN_RIGHT')
             else:
-                avoidance_cmd.angular.z = -scaled_turn
-                self.publish_status('AVOIDING_RIGHT')
+                avoidance_cmd.angular.z = 0.0
+                self.publish_status('OBSTACLE_STOP_NO_CLEAR_SIDE')
 
             self.cmd_pub.publish(avoidance_cmd)
-
-            # Throttled debug: print every 5 cycles (0.5 s) while avoiding.
-            if int(avoid_duration * 10) % 5 == 0:
-                self.get_logger().info(
-                    f'[AVOID] dur={avoid_duration:.2f}s front={front_logic:.2f}m '
-                    f'clear_count={self.clear_count}/{self.clear_cycles_required} '
-                    f'yaw={math.degrees(self.current_yaw):.1f}°'
-                )
             return
 
         # ----------------------------
-        # Mode 3: recover back toward route follower
+        # Case 4: front blocked and both sides blocked
         # ----------------------------
-        if self.mode == 'RECOVERING':
-            if self.recovery_start_time is None:
-                self.recovery_start_time = now
-
-            recovery_duration = (
-                now - self.recovery_start_time
-            ).nanoseconds / 1e9
-
-            # -------------------------------------------
-            # Odom-based proportional heading recovery.
-            # -------------------------------------------
-            # Compute how far the robot's heading has drifted from the yaw it
-            # had when avoidance started. Drive back toward that starting heading
-            # at a capped rate (recovery_angular_cap) so we don't overshoot and
-            # bring the avoided obstacle back into the front LiDAR sector.
-            #
-            # The robot moves forward at recovery_forward_speed the whole time,
-            # creating a gentle arc back toward the route. The route follower
-            # then handles cross-track correction once CLEAR mode resumes.
-            #
-            # Exit conditions (whichever fires first):
-            #   1. yaw_error < recovery_yaw_threshold  (heading corrected)
-            #   2. recovery_duration >= recovery_time   (safety timeout)
-            #
-            # During recovery we do NOT abort based on the front LiDAR sector:
-            # the avoided obstacle is still nearby and will momentarily appear
-            # in the sector while the robot arcs around it. We only hard-stop
-            # for a genuine danger-distance breach.
-            if front_is_danger:
-                self.publish_stop()
-                self.publish_status('DANGER_STOP_DURING_RECOVERY')
-                return
-
-            yaw_error = self.angle_diff(self.current_yaw, self.avoidance_start_yaw)
-
-            # Proportional correction toward the pre-avoidance heading,
-            # capped to recovery_angular_cap to prevent overshoot.
-            recovery_angular = max(
-                -self.recovery_angular_cap,
-                min(self.recovery_angular_cap,
-                    -self.recovery_kp * yaw_error)
-            )
-
-            recovery_cmd = Twist()
-            nominal_linear = float(self.latest_nominal_cmd.linear.x)
-            recovery_cmd.linear.x = min(nominal_linear, self.recovery_forward_speed)
-            recovery_cmd.angular.z = recovery_angular
-
-            self.cmd_pub.publish(recovery_cmd)
-
-            heading_corrected = abs(yaw_error) < self.recovery_yaw_threshold
-            timed_out = recovery_duration >= self.recovery_time
-
-            if heading_corrected or timed_out:
-                self.mode = 'CLEAR'
-                self.blocked_start_time = None
-                self.avoid_direction = None
-                self.avoid_start_time = None
-                self.avoidance_start_yaw = self.current_yaw
-                self.recovery_start_time = None
-                self.clear_count = 0
-                self.recovery_interrupt_count = 0
-                reason = 'RECOVERY_COMPLETE' if heading_corrected else 'RECOVERY_TIMEOUT'
-                self.publish_status(reason)
-            else:
-                self.publish_status('RECOVERING_TO_ROUTE')
-
-            return
-        
-
+        self.publish_stop()
+        self.publish_status('BLOCKED_WAITING')
+        self.handle_possible_blocked()
 
     def scan_message_is_usable(self, scan):
         """

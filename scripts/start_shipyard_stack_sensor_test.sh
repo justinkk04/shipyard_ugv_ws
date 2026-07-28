@@ -92,9 +92,32 @@ ign service -s "/world/$WORLD_NAME/create" \
 echo "Rover spawn request sent."
 sleep 2
 
-echo "Starting ROS/Gazebo bridge..."
+echo "Starting ROS/Gazebo bridges separately..."
+
 ros2 run ros_gz_bridge parameter_bridge \
-    /cmd_vel@geometry_msgs/msg/Twist@ignition.msgs.Twist \
-    /odom@nav_msgs/msg/Odometry@ignition.msgs.Odometry \
-    /scan@sensor_msgs/msg/LaserScan@ignition.msgs.LaserScan \
-    /imu@sensor_msgs/msg/Imu@ignition.msgs.IMU
+    /cmd_vel@geometry_msgs/msg/Twist@ignition.msgs.Twist &
+CMD_BRIDGE_PID=$!
+
+ros2 run ros_gz_bridge parameter_bridge \
+    /odom@nav_msgs/msg/Odometry@ignition.msgs.Odometry &
+ODOM_BRIDGE_PID=$!
+
+ros2 run ros_gz_bridge parameter_bridge \
+    /scan@sensor_msgs/msg/LaserScan@ignition.msgs.LaserScan &
+SCAN_BRIDGE_PID=$!
+
+ros2 run ros_gz_bridge parameter_bridge \
+    /imu@sensor_msgs/msg/Imu@ignition.msgs.IMU &
+IMU_BRIDGE_PID=$!
+
+echo "Bridge PIDs:"
+echo "cmd_vel bridge: $CMD_BRIDGE_PID"
+echo "odom bridge:    $ODOM_BRIDGE_PID"
+echo "scan bridge:    $SCAN_BRIDGE_PID"
+echo "imu bridge:     $IMU_BRIDGE_PID"
+
+echo ""
+echo "To simulate LiDAR failure later, run:"
+echo "kill $SCAN_BRIDGE_PID"
+
+wait
