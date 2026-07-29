@@ -1,0 +1,50 @@
+digraph "my_robot" {
+    rankdir=TB;
+    node [shape=box, style=filled, fontname="Arial"];
+
+    "base_footprint" [fillcolor="#4FC3F7", label="base_footprint\n(link)"];
+    "left_wheel_link" [fillcolor="#4FC3F7", label="left_wheel_link\n(link)"];
+    "right_wheel_link" [fillcolor="#4FC3F7", label="right_wheel_link\n(link)"];
+
+    "base_castor_wheel_joint" [fillcolor="#CE93D8", shape=ellipse, label="base_castor_wheel_joint\n(frame)"];
+    "base_link" -> "base_castor_wheel_joint" [style=dashed, color="#9C27B0", label="attached"];
+    "castor_wheel_link" [fillcolor="#CE93D8", shape=ellipse, label="castor_wheel_link\n(frame)"];
+    "base_castor_wheel_joint" -> "castor_wheel_link" [style=dashed, color="#9C27B0", label="attached"];
+    "base_lidar_joint" [fillcolor="#CE93D8", shape=ellipse, label="base_lidar_joint\n(frame)"];
+    "base_link" -> "base_lidar_joint" [style=dashed, color="#9C27B0", label="attached"];
+    "lidar_link" [fillcolor="#CE93D8", shape=ellipse, label="lidar_link\n(frame)"];
+    "base_lidar_joint" -> "lidar_link" [style=dashed, color="#9C27B0", label="attached"];
+    "base_footprint_joint" [fillcolor="#CE93D8", shape=ellipse, label="base_footprint_joint\n(frame)"];
+    "base_footprint" -> "base_footprint_joint" [style=dashed, color="#9C27B0", label="attached"];
+    "base_link" [fillcolor="#CE93D8", shape=ellipse, label="base_link\n(frame)"];
+    "base_footprint_joint" -> "base_link" [style=dashed, color="#9C27B0", label="attached"];
+
+    "base_left_wheel_joint" [fillcolor="#FFD54F", shape=diamond, label="base_left_wheel_joint\n(revolute)"];
+    "base_footprint" -> "base_left_wheel_joint" [color="#FF6F00"];
+    "base_left_wheel_joint" -> "left_wheel_link" [color="#FF6F00"];
+    "base_right_wheel_joint" [fillcolor="#FFD54F", shape=diamond, label="base_right_wheel_joint\n(revolute)"];
+    "base_footprint" -> "base_right_wheel_joint" [color="#FF6F00"];
+    "base_right_wheel_joint" -> "right_wheel_link" [color="#FF6F00"];
+
+    "gpu_lidar" [fillcolor="#A5D6A7", shape=octagon, label="gpu_lidar\n(gpu_lidar)"];
+    "base_footprint" -> "gpu_lidar" [style=dotted, color="#388E3C", label="sensor"];
+    "imu_sensor" [fillcolor="#A5D6A7", shape=octagon, label="imu_sensor\n(imu)"];
+    "base_footprint" -> "imu_sensor" [style=dotted, color="#388E3C", label="sensor"];
+
+    "ignition::gazebo::systems::DiffDrive" [fillcolor="#FFAB91", shape=hexagon, label="DiffDrive\n(plugin)"];
+    "my_robot_root" [label="my_robot\n(model)", fillcolor="#E0E0E0", shape=box3d];
+    "my_robot_root" -> "ignition::gazebo::systems::DiffDrive" [style=dotted, color="#BF360C", label="plugin"];
+
+    subgraph cluster_legend {
+        label="Legend";
+        style=filled;
+        fillcolor="#F5F5F5";
+        fontname="Arial Bold";
+        legend_link [fillcolor="#4FC3F7", shape=box, label="Link"];
+        legend_joint [fillcolor="#FFD54F", shape=diamond, label="Joint"];
+        legend_frame [fillcolor="#CE93D8", shape=ellipse, label="Frame"];
+        legend_sensor [fillcolor="#A5D6A7", shape=octagon, label="Sensor"];
+        legend_plugin [fillcolor="#FFAB91", shape=hexagon, label="Plugin"];
+        legend_link -> legend_joint -> legend_frame -> legend_sensor -> legend_plugin [style=invis];
+    }
+}
